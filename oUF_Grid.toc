@@ -7,7 +7,6 @@
 
 lib\UTF8\utf8data.lua
 lib\UTF8\utf8.lua
-lib\LibHealComm-3.0\lib.xml
 
 oUF\oUF.xml
 
