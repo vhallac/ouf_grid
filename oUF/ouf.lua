@@ -1,3 +1,15 @@
+UnitReactionColor = {
+	{ r = 1.0, g = 0.0, b = 0.0 },
+	{ r = 1.0, g = 0.0, b = 0.0 },
+	{ r = 1.0, g = 0.5, b = 0.0 },
+	{ r = 1.0, g = 1.0, b = 0.0 },
+	{ r = 0.0, g = 1.0, b = 0.0 },
+	{ r = 0.0, g = 1.0, b = 0.0 },
+	{ r = 0.0, g = 1.0, b = 0.0 },
+	{ r = 0.0, g = 1.0, b = 0.0 },
+}
+
+
 local parent = debugstack():match[[\AddOns\(.-)\]]
 local global = GetAddOnMetadata(parent, 'X-oUF')
 assert(global, 'X-oUF needs to be defined in the parent add-on.')
