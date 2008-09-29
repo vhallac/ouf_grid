@@ -5,6 +5,9 @@
 ## OptionalDeps: oUF, LibHealComm-3.0, UTF8
 ## X-oUF: oufgrid
 
+## LoadManagers: AddonLoader
+## X-LoadOn-Raid: true
+
 lib\UTF8\utf8data.lua
 lib\UTF8\utf8.lua
 
