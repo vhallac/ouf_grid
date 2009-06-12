@@ -1,25 +1,26 @@
-UnitReactionColor = {
-	{ r = 1.0, g = 0.0, b = 0.0 },
-	{ r = 1.0, g = 0.0, b = 0.0 },
-	{ r = 1.0, g = 0.5, b = 0.0 },
-	{ r = 1.0, g = 1.0, b = 0.0 },
-	{ r = 0.0, g = 1.0, b = 0.0 },
-	{ r = 0.0, g = 1.0, b = 0.0 },
-	{ r = 0.0, g = 1.0, b = 0.0 },
-	{ r = 0.0, g = 1.0, b = 0.0 },
-}
-
-
 local parent = debugstack():match[[\AddOns\(.-)\]]
 local global = GetAddOnMetadata(parent, 'X-oUF')
 assert(global, 'X-oUF needs to be defined in the parent add-on.')
 
-local _VERSION = '1.1.1'
-local wotlk = select(4, GetBuildInfo()) >= 3e4
+local _VERSION = GetAddOnMetadata(parent, 'version')
+
+local function argcheck(value, num, ...)
+	assert(type(num) == 'number', "Bad argument #2 to 'argcheck' (number expected, got "..type(num)..")")
+
+	for i=1,select("#", ...) do
+		if type(value) == select(i, ...) then return end
+	end
+
+	local types = strjoin(", ", ...)
+	local name = string.match(debugstack(2,2,0), ": in function [`<](.-)['>]")
+	error(("Bad argument #%d to '%s' (%s expected, got %s"):format(num, name, types, type(value)), 3)
+end
 
 local print = function(a) ChatFrame1:AddMessage("|cff33ff99oUF:|r "..tostring(a)) end
 local error = function(...) print("|cffff0000Error:|r "..string.format(...)) end
 local dummy = function() end
+
+
 local function SetManyAttributes(self, ...)
 	for i=1,select("#", ...),2 do
 		local att,val = select(i, ...)
@@ -50,34 +51,30 @@ local colors = {
 
 -- We do this because people edit the vars directly, and changing the default
 -- globals makes SPICE FLOW!
-for eclass, color in pairs(RAID_CLASS_COLORS) do
+for eclass, color in next, RAID_CLASS_COLORS do
 	colors.class[eclass] = {color.r, color.g, color.b}
 end
 
-for eclass, color in ipairs(UnitReactionColor) do
-	colors.reaction[eclass] = {color.r, color.g, color.b}
+for power, color in next, PowerBarColor do
+	if(type(power) == 'string') then
+		colors.power[power] = {color.r, color.g, color.b}
+	end
 end
 
-if(wotlk) then
-	for power, color in pairs(PowerBarColor) do
-		if(type(power) == 'string') then
-			colors.power[power] = {color.r, color.g, color.b}
-		end
-	end
-else
-	colors.power = {
-		[0] = { 48/255, 113/255, 191/255}, -- Mana
-		[1] = { 226/255, 45/255, 75/255}, -- Rage
-		[2] = { 255/255, 178/255, 0}, -- Focus
-		[3] = { 1, 1, 34/255}, -- Energy
-		[4] = { 0, 1, 1} -- Happiness
-	}
+for eclass, color in next, FACTION_BAR_COLORS do
+	colors.reaction[eclass] = {color.r, color.g, color.b}
 end
 
 -- add-on object
 local oUF = CreateFrame"Button"
-local RegisterEvent = oUF.RegisterEvent
-local metatable = {__index = oUF}
+local frame_metatable = {__index = oUF}
+local event_metatable = {
+	__call = function(funcs, self, ...)
+		for _, func in ipairs(funcs) do
+			func(self, ...)
+		end
+	end,
+}
 
 local styles, style = {}
 local callback, units, objects = {}, {}, {}
@@ -87,14 +84,35 @@ local	_G, select, type, tostring, math_modf =
 local	UnitExists, UnitName =
 		UnitExists, UnitName
 
-local subTypes = {}
-local subTypesMapping = {
-	"UNIT_NAME_UPDATE",
+local conv = {
+	['playerpet'] = 'pet',
+	['playertarget'] = 'target',
 }
+local elements = {}
+
+local enableTargetUpdate = function(object)
+	-- updating of "invalid" units.
+	local OnTargetUpdate
+	do
+		local timer = 0
+		OnTargetUpdate = function(self, elapsed)
+			if(not self.unit) then
+				return
+			elseif(timer >= .5) then
+				self:PLAYER_ENTERING_WORLD'OnTargetUpdate'
+				timer = 0
+			end
+
+			timer = timer + elapsed
+		end
+	end
+
+	object:SetScript("OnUpdate", OnTargetUpdate)
+end
 
 -- Events
 local OnEvent = function(self, event, ...)
-	if(not self:IsShown()) then return end
+	if(not self:IsShown() and not self.vehicleUnit) then return end
 	self[event](self, event, ...)
 end
 
@@ -105,6 +123,14 @@ local OnAttributeChanged = function(self, name, value)
 		if(self.unit and self.unit == value) then
 			return
 		else
+			if(self.hasChildren) then
+				for _, object in next, objects do
+					local unit = SecureButton_GetModifiedUnit(object)
+					object.unit = conv[unit] or unit
+					object:PLAYER_ENTERING_WORLD()
+				end
+			end
+
 			self.unit = value
 			self.id = value:match"^.-(%d+)"
 			self:PLAYER_ENTERING_WORLD()
@@ -145,21 +171,19 @@ local HandleUnit = function(unit, object)
 		ComboFrame:Hide()
 
 		-- Enable our shit
-		object:RegisterEvent"PLAYER_TARGET_CHANGED"
+		object:RegisterEvent("PLAYER_TARGET_CHANGED", 'PLAYER_ENTERING_WORLD')
 	elseif(unit == "focus") then
-		if(wotlk) then
-			FocusFrame:UnregisterAllEvents()
-			FocusFrame.Show = dummy
-			FocusFrame:Hide()
+		FocusFrame:UnregisterAllEvents()
+		FocusFrame.Show = dummy
+		FocusFrame:Hide()
 
-			FocusFrameHealthBar:UnregisterAllEvents()
-			FocusFrameManaBar:UnregisterAllEvents()
-			FocusFrameSpellBar:UnregisterAllEvents()
-		end
+		FocusFrameHealthBar:UnregisterAllEvents()
+		FocusFrameManaBar:UnregisterAllEvents()
+		FocusFrameSpellBar:UnregisterAllEvents()
 
-		object:RegisterEvent"PLAYER_FOCUS_CHANGED"
+		object:RegisterEvent("PLAYER_FOCUS_CHANGED", 'PLAYER_ENTERING_WORLD')
 	elseif(unit == "mouseover") then
-		object:RegisterEvent"UPDATE_MOUSEOVER_UNIT"
+		object:RegisterEvent("UPDATE_MOUSEOVER_UNIT", 'PLAYER_ENTERING_WORLD')
 	elseif(unit:match"target") then
 		-- Hide the blizzard stuff
 		if(unit == "targettarget") then
@@ -171,23 +195,7 @@ local HandleUnit = function(unit, object)
 			TargetofTargetManaBar:UnregisterAllEvents()
 		end
 
-		-- updating of "invalid" units.
-		local OnTargetUpdate
-		do
-			local timer = 0
-			OnTargetUpdate = function(self, elapsed)
-				if(not self.unit) then
-					return
-				elseif(timer >= .5) then
-					self:PLAYER_ENTERING_WORLD'OnTargetUpdate'
-					timer = 0
-				end
-
-				timer = timer + elapsed
-			end
-		end
-
-		object:SetScript("OnUpdate", OnTargetUpdate)
+		enableTargetUpdate(object)
 	elseif(unit == "party") then
 		for i=1,4 do
 			local party = "PartyMemberFrame"..i
@@ -203,52 +211,72 @@ local HandleUnit = function(unit, object)
 	end
 end
 
-local initObject = function(object, unit)
+local initObject = function(unit, style, ...)
+	local num = select('#', ...)
+	for i=1, num do
+		local object = select(i, ...)
+
+		object.__elements = {}
+
+		object = setmetatable(object, frame_metatable)
+		style(object, unit)
+
+		local mt = type(style) == 'table'
+		local height = object:GetAttribute'initial-height' or (mt and style['initial-height'])
+		local width = object:GetAttribute'initial-width' or (mt and style['initial-width'])
+		local scale = object:GetAttribute'initial-scale' or (mt and style['initial-scale'])
+		local suffix = object:GetAttribute'unitsuffix'
+
+		if(height) then
+			object:SetAttribute('initial-height', height)
+			if(unit) then object:SetHeight(height) end
+		end
+
+		if(width) then
+			object:SetAttribute("initial-width", width)
+			if(unit) then object:SetWidth(width) end
+		end
+
+		if(scale) then
+			object:SetAttribute("initial-scale", scale)
+			if(unit) then object:SetScale(scale) end
+		end
+
+		if(suffix == 'target') then
+			enableTargetUpdate(object)
+		end
+
+		if(num > 1 and i == 1) then
+			object.hasChildren = true
+		end
+
+		object:SetAttribute("*type1", "target")
+		object:SetScript("OnEvent", OnEvent)
+		object:SetScript("OnAttributeChanged", OnAttributeChanged)
+		object:SetScript("OnShow", object.PLAYER_ENTERING_WORLD)
+
+		object:RegisterEvent"PLAYER_ENTERING_WORLD"
+
+		for element in next, elements do
+			object:EnableElement(element, unit)
+		end
+
+		for _, func in next, callback do
+			func(object)
+		end
+
+		-- We could use ClickCastFrames only, but it will probably contain frames that
+		-- we don't care about.
+		table.insert(objects, object)
+		_G.ClickCastFrames = ClickCastFrames or {}
+		ClickCastFrames[object] = true
+	end
+end
+
+local walkObject = function(object, unit)
 	local style = object:GetParent().style or styles[style]
 
-	object = setmetatable(object, metatable)
-	style(object, unit)
-
-	local mt = type(style) == 'table'
-	local height = object:GetAttribute'initial-height' or (mt and style['initial-height'])
-	local width = object:GetAttribute'initial-width' or (mt and style['initial-width'])
-	local scale = object:GetAttribute'initial-scale' or (mt and style['initial-scale'])
-
-	if(height) then
-		object:SetAttribute('initial-height', height)
-		if(unit) then object:SetHeight(height) end
-	end
-
-	if(width) then
-		object:SetAttribute("initial-width", width)
-		if(unit) then object:SetWidth(width) end
-	end
-
-	if(scale) then
-		object:SetAttribute("initial-scale", scale)
-		if(unit) then object:SetScale(scale) end
-	end
-
-	object:SetAttribute("*type1", "target")
-	object:SetScript("OnEvent", OnEvent)
-	object:SetScript("OnAttributeChanged", OnAttributeChanged)
-	object:SetScript("OnShow", object.PLAYER_ENTERING_WORLD)
-
-	object:RegisterEvent"PLAYER_ENTERING_WORLD"
-
-	for _, func in ipairs(subTypes) do
-		func(object, unit)
-	end
-
-	for _, func in ipairs(callback) do
-		func(object)
-	end
-
-	-- We could use ClickCastFrames only, but it will probably contain frames that
-	-- we don't care about.
-	table.insert(objects, object)
-	_G.ClickCastFrames = ClickCastFrames or {}
-	ClickCastFrames[object] = true
+	initObject(unit, style, object, object:GetChildren())
 end
 
 function oUF:RegisterInitCallback(func)
@@ -256,43 +284,38 @@ function oUF:RegisterInitCallback(func)
 end
 
 function oUF:RegisterStyle(name, func)
-	if(type(name) ~= "string") then return error("Bad argument #1 to 'RegisterStyle' (string expected, got %s)", type(name)) end
-	if(type(func) == 'function' or (type(func) == 'table' and type(getmetatable(func).__call))) then
-		if(styles[name]) then return error("Style [%s] already registered.", name) end
-		if(not style) then style = name end
+	argcheck(name, 2, 'string')
+	argcheck(func, 3, 'function', 'table')
 
-		styles[name] = func
-	else
-		error("Bad argument #2 to 'RegisterStyle' (table/function expected, got %s)", type(func))
-	end
+	if(styles[name]) then return error("Style [%s] already registered.", name) end
+	if(not style) then style = name end
+
+	styles[name] = func
 end
 
 function oUF:SetActiveStyle(name)
-	if(type(name) ~= "string") then return error("Bad argument #1 to 'SetActiveStyle' (string expected, got %s)", type(name)) end
+	argcheck(name, 2, 'string')
 	if(not styles[name]) then return error("Style [%s] does not exist.", name) end
 
 	style = name
 end
 
-function oUF:Spawn(unit, name, isPet)
-	if(not unit) then return error("Bad argument #1 to 'Spawn' (string expected, got %s)", type(unit)) end
+function oUF:Spawn(unit, name, template, disableBlizz)
+	argcheck(unit, 2, 'string')
 	if(not style) then return error("Unable to create frame. No styles have been registered.") end
 
 	local style = styles[style]
 	local object
 	if(unit == "header") then
-		local template
-		if(isPet) then
-			template = "SecureGroupPetHeaderTemplate"
-		else
-			-- Yes, I know.
-			HandleUnit"party"
+		if(not template) then
 			template = "SecureGroupHeaderTemplate"
 		end
 
+		HandleUnit(disableBlizz or 'party')
+
 		local header = CreateFrame("Frame", name, UIParent, template)
 		header:SetAttribute("template", "SecureUnitButtonTemplate")
-		header.initialConfigFunction = initObject
+		header.initialConfigFunction = walkObject
 		header.style = style
 		header.SetManyAttributes = SetManyAttributes
 
@@ -304,7 +327,7 @@ function oUF:Spawn(unit, name, isPet)
 		object.id = unit:match"^.-(%d+)"
 
 		units[unit] = object
-		initObject(object, unit)
+		walkObject(object, unit)
 		HandleUnit(unit, object)
 		RegisterUnitWatch(object)
 	end
@@ -312,14 +335,112 @@ function oUF:Spawn(unit, name, isPet)
 	return object
 end
 
-function oUF:RegisterSubTypeMapping(event)
-	for _, map in ipairs(subTypesMapping) do
-		if(map == event) then
-			return
-		end
+local RegisterEvent = oUF.RegisterEvent
+function oUF:RegisterEvent(event, func)
+	argcheck(event, 2, 'string')
+
+	if(type(func) == 'string' and type(self[func]) == 'function') then
+		func = self[func]
 	end
 
-	table.insert(subTypesMapping, event)
+	local curev = self[event]
+	if(curev and func) then
+		if(type(curev) == 'function') then
+			self[event] = setmetatable({curev, func}, event_metatable)
+		else
+			for _, infunc in ipairs(curev) do
+				if(infunc == func) then return end
+			end
+
+			table.insert(curev, func)
+		end
+	elseif(self:IsEventRegistered(event)) then
+		return
+	else
+		if(func) then
+			self[event] = func
+		elseif(not self[event]) then
+			return error("Handler for event [%s] on unit [%s] does not exist.", event, self.unit or 'unknown')
+		end
+
+		RegisterEvent(self, event)
+	end
+end
+
+local UnregisterEvent = oUF.UnregisterEvent
+function oUF:UnregisterEvent(event, func)
+	argcheck(event, 2, 'string')
+
+	local curev = self[event]
+	if(type(curev) == 'table' and func) then
+		for k, infunc in ipairs(curev) do
+			if(infunc == func) then
+				curev[k] = nil
+
+				if(#curev == 0) then
+					table.remove(curev, k)
+					UnregisterEvent(self, event)
+				end
+			end
+		end
+	else
+		self[event] = nil
+		UnregisterEvent(self, event)
+	end
+end
+
+function oUF:AddElement(name, update, enable, disable)
+	argcheck(name, 2, 'string')
+	argcheck(update, 3, 'function', 'nil')
+	argcheck(enable, 4, 'function', 'nil')
+	argcheck(disable, 5, 'function', 'nil')
+
+	if(elements[name]) then return error('Element [%s] is already registered.', name) end
+	elements[name] = {
+		update = update;
+		enable = enable;
+		disable = disable;
+	}
+end
+
+function oUF:EnableElement(name, unit)
+	argcheck(name, 2, 'string')
+	argcheck(unit, 3, 'string', 'nil')
+
+	local element = elements[name]
+	if(not element) then return end
+
+	if(element.enable(self, unit or self.unit)) then
+		table.insert(self.__elements, element.update)
+	end
+end
+
+function oUF:DisableElement(name)
+	argcheck(name, 2, 'string')
+	local element = elements[name]
+	if(not element) then return end
+
+	for k, update in ipairs(self.__elements) do
+		if(update == element.update) then
+			table.remove(self.__elements, k)
+			element.disable(self)
+			break
+		end
+	end
+end
+
+function oUF:UpdateElement(name)
+	argcheck(name, 2, 'string')
+	local element = elements[name]
+	if(not element) then return end
+
+	element.update(self, 'UpdateElement', self.unit)
+end
+
+oUF.Enable = RegisterUnitWatch
+function oUF:Disable()
+	UnregisterUnitWatch(self)
+	self:Hide()
 end
 
 --[[
@@ -331,16 +452,10 @@ function oUF:PLAYER_ENTERING_WORLD(event)
 	local unit = self.unit
 	if(not UnitExists(unit)) then return end
 
-	for _, func in ipairs(subTypesMapping) do
-		if(self:IsEventRegistered(func)) then
-			self[func](self, event, unit)
-		end
+	for _, func in next, self.__elements do
+		func(self, event, unit)
 	end
 end
-
-oUF.PLAYER_TARGET_CHANGED = oUF.PLAYER_ENTERING_WORLD
-oUF.PLAYER_FOCUS_CHANGED = oUF.PLAYER_ENTERING_WORLD
-oUF.UPDATE_MOUSEOVER_UNIT = oUF.PLAYER_ENTERING_WORLD
 
 -- http://www.wowwiki.com/ColorGradient
 function oUF.ColorGradient(perc, ...)
@@ -360,29 +475,8 @@ function oUF.ColorGradient(perc, ...)
 	return r1 + (r2-r1)*relperc, g1 + (g2-g1)*relperc, b1 + (b2-b1)*relperc
 end
 
-function oUF:PARTY_MEMBERS_CHANGED(event)
-	if(self:IsEventRegistered"PARTY_LEADER_CHANGED") then self:PARTY_LEADER_CHANGED() end
-end
-
-function oUF:UNIT_NAME_UPDATE(event, unit)
-	if(self.unit ~= unit) then return end
-	local name = UnitName(unit)
-
-	-- This is really really temporary, at least until someone writes a tag
-	-- library that doesn't eat babies and spew poison (or any other common
-	-- solution to this problem).
-	self.Name:SetText(name)
-end
-table.insert(subTypes, function(self)
-	if(self.Name) then
-		self:RegisterEvent"UNIT_NAME_UPDATE"
-	end
-end)
-
 oUF.version = _VERSION
 oUF.units = units
 oUF.objects = objects
-oUF.subTypes = subTypes
-oUF.subTypesMapping = subTypesMapping
 oUF.colors = colors
 _G[global] = oUF

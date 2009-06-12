@@ -1,18 +1,15 @@
 --[[
 	Elements handled: .Auras, .Buffs, .Debuffs
-	Notes: .Auras override .Buffs and .Debuffs if they exist on the same frame.
 
 	Shared:
 	 - spacing: Padding between aura icons. (Default: 0)
 	 - size: Size of the aura icons. (Default: 16)
 	 - initialAnchor: Initial anchor in the aura frame. (Default: "BOTTOMLEFT")
-	 - onlyShowDuration: Only display icons that have a duration (swirly circle of
-	   doom). (Default: nil)
+	 - onlyShowPlayer: Only display icons casted by the player. (Default: nil)
 	 - growth-x: Growth direction, affected by initialAnchor. (Default: "UP")
 	 - growth-y: Growth direction, affected by initialAnchor. (Default: "RIGHT")
-	 - filter
-		- 2.x: Expects a boolean. (Default: nil)
-		- 3.x: Expects a string with filter. See the UnitAura[1] documentation for
+	 - disableCooldown: Disable the Cooldown Spiral on the Aura Icons. (Default: nil)
+	 - filter: Expects a string with filter. See the UnitAura[1] documentation for
 		more information.
 
 	.Auras only:
@@ -51,28 +48,11 @@ local global = GetAddOnMetadata(parent, 'X-oUF')
 assert(global, 'X-oUF needs to be defined in the parent add-on.')
 local oUF = _G[global]
 
-local wotlk = select(4, GetBuildInfo()) >= 3e4
-
-local	select, table_insert, math_floor, UnitDebuff, UnitBuff, GetTime, DebuffTypeColor =
-		select, table.insert, math.floor, UnitDebuff, UnitBuff, GetTime, DebuffTypeColor
-
-local timeLeft, duration, dtype, count, texture, rank, name, color
-local total, col, row, size, anchor, button, growthx, growthy, cols, rows, spacing, gap
-local auras, buffs, debuffs, mod, max, filter, index, icon
-
 local OnEnter = function(self)
 	if(not self:IsVisible()) then return end
 
 	GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-	if(wotlk) then
-		GameTooltip:SetUnitAura(self.frame.unit, self:GetID(), self.filter)
-	else
-		if(self.debuff) then
-			GameTooltip:SetUnitDebuff(self.frame.unit, self:GetID(), self.parent.filter)
-		else
-			GameTooltip:SetUnitBuff(self.frame.unit, self:GetID(), self.parent.filter)
-		end
-	end
+	GameTooltip:SetUnitAura(self.frame.unit, self:GetID(), self.filter)
 end
 
 local OnLeave = function()
@@ -105,7 +85,7 @@ local createAuraIcon = function(self, icons, index, debuff)
 	button:SetScript("OnEnter", OnEnter)
 	button:SetScript("OnLeave", OnLeave)
 
-	table_insert(icons, button)
+	table.insert(icons, button)
 
 	button.parent = icons
 	button.frame = self
@@ -120,72 +100,81 @@ local createAuraIcon = function(self, icons, index, debuff)
 	return button
 end
 
-local updateIcon = function(self, unit, icons, index, offset, filter, isDebuff, max)
-	if(index == 0) then index = max end
-	if(wotlk) then
-		name, rank, texture, count, dtype, duration, timeLeft = UnitAura(unit, index, filter)
-	else
-		if(isDebuff) then
-			name, rank, texture, count, dtype, duration, timeLeft = UnitDebuff(unit, index, filter)
-		else
-			name, rank, texture, count, duration, timeLeft = UnitBuff(unit, index, filter)
-		end
+local customFilter = function(icons, unit, icon, name, rank, texture, count, dtype, duration, timeLeft, caster)
+	local isPlayer
+
+	if(caster == 'player' or caster == 'vehicle') then
+		isPlayer = true
 	end
 
-	icon = icons[index + offset]
-	if((icons.onlyShowDuration and duration) or (not icons.onlyShowDuration and name)) then
-		if(not icon) then icon = (self.CreateAuraIcon and self:CreateAuraIcon(icons, index, isDebuff)) or createAuraIcon(self, icons, index, isDebuff) end
+	if((icons.onlyShowPlayer and isPlayer) or (not icons.onlyShowPlayer and name)) then
+		icon.isPlayer = isPlayer
+		icon.owner = caster
+		return true
+	end
+end
 
-		if(duration and duration > 0) then
-			if(wotlk) then
-				icon.cd:SetCooldown(timeLeft - duration, duration)
-			else
-				icon.cd:SetCooldown(GetTime()-(duration-timeLeft), duration)
-			end
+local updateIcon = function(self, unit, icons, index, offset, filter, isDebuff, max)
+	if(index == 0) then index = max end
+
+	local icon = icons[index + offset]
+	if(not icon) then
+		icon = (self.CreateAuraIcon or createAuraIcon) (self, icons, index, isDebuff)
+	end
+
+	local name, rank, texture, count, dtype, duration, timeLeft, caster = UnitAura(unit, index, filter)
+	local show = (self.CustomAuraFilter or customFilter) (icons, unit, icon, name, rank, texture, count, dtype, duration, timeLeft, caster)
+	if(show) then
+		if(not icons.disableCooldown and duration and duration > 0) then
+			icon.cd:SetCooldown(timeLeft - duration, duration)
 			icon.cd:Show()
 		else
 			icon.cd:Hide()
 		end
 
 		if((isDebuff and icons.showDebuffType) or (not isDebuff and icons.showBuffType) or icons.showType) then
-			color = DebuffTypeColor[dtype or "none"]
+			local color = DebuffTypeColor[dtype] or DebuffTypeColor.none
+
 			icon.overlay:SetVertexColor(color.r, color.g, color.b)
 			icon.overlay:Show()
-			icon.count:SetText((count > 1 and count))
 		else
 			icon.overlay:Hide()
 		end
 
-		icon:Show()
-		icon:SetID(index)
-
-		icon.filter = filter
-		icon.debuff = isDebuff
 		icon.icon:SetTexture(texture)
 		icon.count:SetText((count > 1 and count))
 
-		if(self.PostUpdateAuraIcon) then self:PostUpdateAuraIcon(icons, unit, icon, index, offset, filter, isDebuff) end
+		icon.filter = filter
+		icon.debuff = isDebuff
+
+		icon:SetID(index)
+		icon:Show()
+
+		if(self.PostUpdateAuraIcon) then
+			self:PostUpdateAuraIcon(icons, unit, icon, index, offset, filter, isDebuff)
+		end
+
 		return true
-	elseif(icon) then
+	else
 		icon:Hide()
 	end
 end
 
-function oUF:SetAuraPosition(icons, x)
+local SetAuraPosition = function(self, icons, x)
 	if(icons and x > 0) then
-		col = 0
-		row = 0
-		spacing = icons.spacing or 0
-		gap = icons.gap
-		size = (icons.size or 16) + spacing
-		anchor = icons.initialAnchor or "BOTTOMLEFT"
-		growthx = (icons["growth-x"] == "LEFT" and -1) or 1
-		growthy = (icons["growth-y"] == "DOWN" and -1) or 1
-		cols = math_floor(icons:GetWidth() / size + .5)
-		rows = math_floor(icons:GetHeight() / size + .5)
+		local col = 0
+		local row = 0
+		local spacing = icons.spacing or 0
+		local gap = icons.gap
+		local size = (icons.size or 16) + spacing
+		local anchor = icons.initialAnchor or "BOTTOMLEFT"
+		local growthx = (icons["growth-x"] == "LEFT" and -1) or 1
+		local growthy = (icons["growth-y"] == "DOWN" and -1) or 1
+		local cols = math.floor(icons:GetWidth() / size + .5)
+		local rows = math.floor(icons:GetHeight() / size + .5)
 
 		for i = 1, x do
-			button = icons[i]
+			local button = icons[i]
 			if(button and button:IsShown()) then
 				if(gap and button.debuff) then
 					if(col > 0) then
@@ -208,26 +197,26 @@ function oUF:SetAuraPosition(icons, x)
 	end
 end
 
-function oUF:UNIT_AURA(event, unit)
+local Update = function(self, event, unit)
 	if(self.unit ~= unit) then return end
 	if(self.PreUpdateAura) then self:PreUpdateAura(event, unit) end
 
-	auras, buffs, debuffs = self.Auras, self.Buffs, self.Debuffs
+	local auras, buffs, debuffs = self.Auras, self.Buffs, self.Debuffs
 
 	if(auras) then
-		buffs = auras.numBuffs or 32
-		debuffs = auras.numDebuffs or 40
-		max = debuffs + buffs
+		local buffs = auras.numBuffs or 32
+		local debuffs = auras.numDebuffs or 40
+		local max = debuffs + buffs
 
 		local visibleBuffs, visibleDebuffs = 0, 0
 		for index = 1, max do
 			if(index > buffs) then
-				if(updateIcon(self, unit, auras, index % debuffs, buffs, auras.debuffFilter or auras.filter or 'HARMFUL', true, debuffs)) then
-					visibleBuffs = visibleBuffs + 1
+				if(updateIcon(self, unit, auras, index % debuffs, visibleBuffs, auras.debuffFilter or auras.filter or 'HARMFUL', true, debuffs)) then
+					visibleDebuffs = visibleDebuffs + 1
 				end
 			else
 				if(updateIcon(self, unit, auras, index, 0, auras.buffFilter or  auras.filter or 'HELPFUL')) then
-					visibleDebuffs = visibleDebuffs + 1
+					visibleBuffs = visibleBuffs + 1
 				end
 			end
 		end
@@ -237,65 +226,69 @@ function oUF:UNIT_AURA(event, unit)
 		auras.visibleAuras = visibleBuffs + visibleDebuffs
 
 		self:SetAuraPosition(auras, max)
-	else
-		if(buffs) then
-			if(wotlk) then
-				filter = buffs.filter or 'HELPFUL'
-			else
-				filter = buffs.filter
-			end
-			max = buffs.num or 32
-			local visibleBuffs = 0
-			for index = 1, max do
-				if(not updateIcon(self, unit, buffs, index, 0, filter)) then
-					max = index - 1
+	end
 
-					while(buffs[index]) do
-						buffs[index]:Hide()
-						index = index + 1
-					end
-					break
+	if(buffs) then
+		local filter = buffs.filter or 'HELPFUL'
+		local max = buffs.num or 32
+		local visibleBuffs = 0
+		for index = 1, max do
+			if(not updateIcon(self, unit, buffs, index, 0, filter)) then
+				max = index - 1
+
+				while(buffs[index]) do
+					buffs[index]:Hide()
+					index = index + 1
 				end
-
-				visibleBuffs = visibleBuffs + 1
+				break
 			end
 
-			buffs.visibleBuffs = visibleBuffs
-			self:SetAuraPosition(buffs, max)
+			visibleBuffs = visibleBuffs + 1
 		end
-		if(debuffs) then
-			if(wotlk) then
-				filter = debuffs.filter or 'HARMFUL'
-			else
-				filter = debuffs.filter
-			end
-			max = debuffs.num or 40
-			local visibleDebuffs = 0
-			for index = 1, max do
-				if(not updateIcon(self, unit, debuffs, index, 0, filter, true)) then
-					max = index - 1
 
-					while(debuffs[index]) do
-						debuffs[index]:Hide()
-						index = index + 1
-					end
-					break
+		buffs.visibleBuffs = visibleBuffs
+		self:SetAuraPosition(buffs, max)
+	end
+
+	if(debuffs) then
+		local filter = debuffs.filter or 'HARMFUL'
+		local max = debuffs.num or 40
+		local visibleDebuffs = 0
+		for index = 1, max do
+			if(not updateIcon(self, unit, debuffs, index, 0, filter, true)) then
+				max = index - 1
+
+				while(debuffs[index]) do
+					debuffs[index]:Hide()
+					index = index + 1
 				end
-
-				visibleDebuffs = visibleDebuffs + 1
+				break
 			end
-			debuffs.visibleDebuffs = visibleDebuffs
-			self:SetAuraPosition(debuffs, max)
+
+			visibleDebuffs = visibleDebuffs + 1
 		end
+		debuffs.visibleDebuffs = visibleDebuffs
+		self:SetAuraPosition(debuffs, max)
 	end
 
 	if(self.PostUpdateAura) then self:PostUpdateAura(event, unit) end
 end
 
-table.insert(oUF.subTypes, function(self)
+local Enable = function(self)
 	if(self.Buffs or self.Debuffs or self.Auras) then
-		self:RegisterEvent"UNIT_AURA"
-	end
-end)
+		if(not self.SetAuraPosition) then 
+			self.SetAuraPosition = SetAuraPosition
+		end
+		self:RegisterEvent("UNIT_AURA", Update)
 
-oUF:RegisterSubTypeMapping"UNIT_AURA"
+		return true
+	end
+end
+
+local Disable = function(self)
+	if(self.Buffs or self.Debuffs or self.Auras) then
+		self:UnregisterEvent("UNIT_AURA", Update)
+	end
+end
+
+oUF:AddElement('Aura', Update, Enable, Disable)
