@@ -66,7 +66,7 @@ setmetatable(colors.class, {
 })
 
 local GetClassColor = function(unit)
-	return unpack(colors.class[select(2, UnitClass(unit))])
+	return unpack(oUF.colors.class[select(2, UnitClass(unit))])
 end
 
 local ColorGradient = function(perc, r1, g1, b1, r2, g2, b2, r3, g3, b3)
