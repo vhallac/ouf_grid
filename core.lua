@@ -255,9 +255,9 @@ oUF:SetActiveStyle("Kanne-Grid")
 local raid = {}
 for i = 1, 8 do
 	local r = oUF:Spawn("header", "oUF_Raid" .. i)
-	r:SetPoint("TOP", UIParent, "TOP", 0, -200)
+	r:SetPoint("TOP", UIParent, "TOP", 0, -100)
 	if i == 1 then
-		r:SetPoint("LEFT", UIParent, "LEFT", 10, 0)
+		r:SetPoint("LEFT", UIParent, "LEFT", 80, 0)
 		r:SetAttribute("showParty", true)
 	else
 		r:SetPoint("LEFT", raid[i - 1], "RIGHT", 6, 0)
