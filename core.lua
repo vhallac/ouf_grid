@@ -43,7 +43,6 @@ local UnitInRaid = UnitInRaid
 
 local width, height = 32, 32
 
-local supernova = [[Interface\AddOns\oUF_Grid\media\nokiafc22.ttf]]
 local texture = [[Interface\AddOns\oUF_Grid\media\gradient32x32.tga]]
 local hightlight = [[Interface\AddOns\oUF_Grid\media\mouseoverHighlight.tga]]
 
@@ -190,10 +189,9 @@ local frame = function(settings, self, unit)
 
 	self.Highlight = hl
 
-	local name = hp:CreateFontString(nil, "OVERLAY")
+	local name = hp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	name:SetPoint("CENTER")
 	name:SetJustifyH("CENTER")
-	name:SetFont(supernova, 10, "THINOUTLINE")
 	name:SetShadowColor(0,0,0,1)
 	name:SetShadowOffset(1, -1)
 	name:SetTextColor(1, 1, 1, 1)
