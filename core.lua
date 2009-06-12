@@ -103,27 +103,14 @@ local round = function(x, y)
 	return math.floor((x * 10 ^ y)+ 0.5) / 10 ^ y
 end
 
-local Health_Update = function(self, event, unit, bar, current, max)
-	local def = max - current
-	bar:SetValue(current)
 
-	local per = round(current/max, 100)
-	local col = ColorGradient(per, 1, 0, 0, 1, 1, 0, 1, 1, 1)
-	self.Name:SetTextColor(unpack(col))
 
-	if per > 0.9 or UnitIsDeadOrGhost(unit) then
-		self.Name:SetText(self.name)
-	else
-		self.Name:SetFormattedText("-%0.1f",math.floor(def/100)/10)
-	end
-
+local PostUpdateHealth = function(self, event, unit, bar, current, max)
 	if UnitIsDeadOrGhost(unit) or not UnitIsConnected(unit) then
 		bar.bg:SetVertexColor(0.3, 0.3, 0.3)
 	else
 		bar.bg:SetVertexColor(GetClassColor(unit))
 	end
-
-	self.heal:SetPoint("BOTTOM", self, "BOTTOM", 0, height * per)
 end
 
 local OnEnter = function(self)
@@ -179,7 +166,7 @@ local frame = function(settings, self, unit)
 
 	hp.bg = hpbg
 	self.Health = hp
-	self.OverrideUpdateHealth = Health_Update
+	self.PostUpdateHealth = PostUpdateHealth
 
 	local hl = hp:CreateTexture(nil, "OVERLAY")
 	hl:SetAllPoints(self)
