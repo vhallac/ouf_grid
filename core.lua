@@ -34,10 +34,6 @@ if not oUF then
 	return error("oUF Grid requires oUF")
 end
 
-if oUF.version ~= "1.1.1" then
-	ChatFrame1:AddMessage("oUF Grid: oUF_Grid Requires oUF Version >= 1.1, higher versions may break it or may not, remove this line if you care or can fix it. kisses Zariel, also dont PM its broken.")
-end
-
 local UnitName = UnitName
 local UnitClass = UnitClass
 local select = select
