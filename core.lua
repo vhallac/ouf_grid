@@ -86,16 +86,12 @@ local ColorGradient = function(perc, r1, g1, b1, r2, g2, b2, r3, g3, b3)
 	return { r2 + (r3-r2)*relperc, g2 + (g3-g2)*relperc, b2 + (b3-b2)*relperc }
 end
 
-local Name_Update = function(self, event, unit)
-	if self.unit ~= unit then return end
 
-	local n, s = UnitName(unit)
-	self.name = string.utf8sub(n, 1, 3)
-
-	if UnitIsDeadOrGhost(unit) or not UnitIsConnected(unit) then
-		self.Health.bg:SetVertexColor(0.3, 0.3, 0.3)
-	else
-		self.Health.bg:SetVertexColor(GetClassColor(unit))
+local function HasDebuffType(unit, t)
+	for i=1,40 do
+		local name, _, _, _, debuffType = UnitDebuff(unit, i)
+		if not name then return
+		elseif debuffType == t then return true end
 	end
 end
 
@@ -103,6 +99,34 @@ local round = function(x, y)
 	return math.floor((x * 10 ^ y)+ 0.5) / 10 ^ y
 end
 
+oUF.Tags["[tekdisease]"] = function(u) return HasDebuffType(u, "Disease") and "|cff996600Di|r" or "" end
+oUF.Tags["[tekmagic]"]   = function(u) return HasDebuffType(u, "Magic")   and "|cff3399FFMa|r" or "" end
+oUF.Tags["[tekcurse]"]   = function(u) return HasDebuffType(u, "Curse")   and "|cff9900FFCu|r" or "" end
+oUF.Tags["[tekpoison]"]  = function(u) return HasDebuffType(u, "Poison")  and "|cff009900Po|r" or "" end
+oUF.Tags["[tekdead]"]  = function(u) return UnitIsDead(u) and "|cff990000Dead|r" end
+oUF.Tags["[tekghost]"]  = function(u) return UnitIsGhost(u) and "|cff990000Ghost|r" end
+oUF.Tags["[tekDC]"]  = function(u) return not UnitIsConnected(u) and "|cff999999D/C|r" end
+oUF.Tags["[tekname]"]  = function(u)
+	if HasDebuffType(u, "Poison") or HasDebuffType(u, "Disease") or HasDebuffType(u, "Magic") or HasDebuffType(u, "Curse") then return end
+	local c, m, n = UnitHealth(u), UnitHealthMax(u), UnitName(u)
+	return UnitIsConnected(u) and not (UnitIsDead(u) or UnitIsGhost(u)) and c >= m and string.sub(n, 1, math.max(string.len(n), 5))
+end
+oUF.Tags["[tekhp]"]  = function(u)
+	if HasDebuffType(u, "Poison") or HasDebuffType(u, "Disease") or HasDebuffType(u, "Magic") or HasDebuffType(u, "Curse") then return end
+	local c, m, n = UnitHealth(u), UnitHealthMax(u)
+	return UnitIsConnected(u) and not (UnitIsDead(u) or UnitIsGhost(u)) and c < m and "-"..oUF.Tags["[missinghp]"](u)
+end
+oUF.TagEvents["[tekdisease]"] = "UNIT_AURA"
+oUF.TagEvents["[tekmagic]"]   = "UNIT_AURA"
+oUF.TagEvents["[tekcurse]"]   = "UNIT_AURA"
+oUF.TagEvents["[tekpoison]"]  = "UNIT_AURA"
+oUF.TagEvents["[tekdead]"] = "UNIT_HEALTH"
+oUF.TagEvents["[tekghost]"] = "UNIT_HEALTH"
+oUF.TagEvents["[tekDC]"] = "UNIT_HEALTH"
+oUF.TagEvents["[tekname]"] = "UNIT_HEALTH UNIT_MAXHEALTH UNIT_NAME_UPDATE"
+oUF.TagEvents["[tekhp]"] = "UNIT_HEALTH UNIT_MAXHEALTH"
+
+local tagstr = "[tekdisease][tekmagic][tekcurse][tekpoison][tekdead][tekghost][tekDC][raidcolor][tekname][tekhp]"
 
 
 local PostUpdateHealth = function(self, event, unit, bar, current, max)
@@ -183,8 +207,7 @@ local frame = function(settings, self, unit)
 	name:SetShadowOffset(1, -1)
 	name:SetTextColor(1, 1, 1, 1)
 
-	self.Name = name
-	self.UNIT_NAME_UPDATE = Name_Update
+	self:Tag(name, tagstr)
 
 	local border = hp:CreateTexture(nil, "OVERLAY")
 	border:SetPoint("LEFT", self, "LEFT", -4, 0)
