@@ -41,13 +41,15 @@ local unpack = unpack
 local UnitDebuff = UnitDebuff
 local UnitInRaid = UnitInRaid
 
-local width, height = 32, 32
+local width, height = 50, 50
 
 local texture = [[Interface\AddOns\oUF_Grid\media\gradient32x32.tga]]
 local hightlight = [[Interface\AddOns\oUF_Grid\media\mouseoverHighlight.tga]]
 
 local colors = {
 	class ={
+		-- I accept patches you know
+		["DEATHKNIGHT"] = { 0.77, 0.12, 0.23 },
 		["DRUID"] = { 1.0 , 0.49, 0.04 },
 		["HUNTER"] = { 0.67, 0.83, 0.45 },
 		["MAGE"] = { 0.41, 0.8 , 0.94 },
@@ -70,20 +72,14 @@ local GetClassColor = function(unit)
 end
 
 local ColorGradient = function(perc, r1, g1, b1, r2, g2, b2, r3, g3, b3)
-	if perc >= 1 then
+	if perc >= 0.66 then
 		return { r3, g3, b3 }
-	elseif perc <= 0 then
+	elseif perc >= 0.33 then
+		return { r2, g2, b2 }
+	else
 		return { r1, g1, b1 }
 	end
 
-	local segment, relperc = math.modf(perc*(2))
-	local offset = (segment*3)+1
-
-	if(offset == 1) then
-		return { r1 + (r2-r1)*relperc, g1 + (g2-g1)*relperc, b1 + (b2-b1)*relperc }
-	end
-
-	return { r2 + (r3-r2)*relperc, g2 + (g3-g2)*relperc, b2 + (b3-b2)*relperc }
 end
 
 
@@ -263,6 +259,8 @@ for i = 1, 8 do
 	if i == 1 then
 		r:SetPoint("LEFT", UIParent, "LEFT", 80, 0)
 		r:SetAttribute("showParty", true)
+		r:SetAttribute("showPlayer", true)
+		r:SetAttribute("showSolo", true)
 	else
 		r:SetPoint("LEFT", raid[i - 1], "RIGHT", 6, 0)
 	end
