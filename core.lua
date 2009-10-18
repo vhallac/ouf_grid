@@ -86,12 +86,10 @@ oUF.Tags["[tekdead]"]  = function(u) return UnitIsDead(u) and "|cff990000Dead|r"
 oUF.Tags["[tekghost]"]  = function(u) return UnitIsGhost(u) and "|cff990000Ghost|r" end
 oUF.Tags["[tekDC]"]  = function(u) return not UnitIsConnected(u) and "|cff999999D/C|r" end
 oUF.Tags["[tekname]"]  = function(u)
-	if HasDebuffType(u, "Poison") or HasDebuffType(u, "Disease") or HasDebuffType(u, "Magic") or HasDebuffType(u, "Curse") then return end
 	local c, m, n = UnitHealth(u), UnitHealthMax(u), UnitName(u)
 	return UnitIsConnected(u) and not (UnitIsDead(u) or UnitIsGhost(u)) and c >= m and string.sub(n, 1, math.max(string.len(n), 5))
 end
 oUF.Tags["[tekhp]"]  = function(u)
-	if HasDebuffType(u, "Poison") or HasDebuffType(u, "Disease") or HasDebuffType(u, "Magic") or HasDebuffType(u, "Curse") then return end
 	local c, m, n = UnitHealth(u), UnitHealthMax(u)
 	return UnitIsConnected(u) and not (UnitIsDead(u) or UnitIsGhost(u)) and c < m and "-"..oUF.Tags["[missinghp]"](u)
 end
@@ -189,7 +187,7 @@ local frame = function(settings, self, unit)
 	border:SetPoint("RIGHT", self, "RIGHT", 4, 0)
 	border:SetPoint("TOP", self, "TOP", 0, 4)
 	border:SetPoint("BOTTOM", self, "BOTTOM", 0, -4)
-	border:SetTexture([[Interface\AddOns\oUF_Kanne_Grid\media\Normal.tga]])
+	border:SetTexture([[Interface\AddOns\oUF_Grid\media\Normal.tga]])
 	border:Hide()
 	border:SetVertexColor(1, 1, 1)
 
@@ -237,16 +235,16 @@ for i = 1, 8 do
 	r:SetPoint("TOP", UIParent, "TOP", 0, -100)
 	if i == 1 then
 		r:SetPoint("LEFT", UIParent, "LEFT", 80, 0)
-		r:SetAttribute("showParty", true)
-		r:SetAttribute("showPlayer", true)
-		r:SetAttribute("showSolo", true)
+		r:SetManyAttributes('showParty', true,
+							'showPlayer', true,
+							'showSolo', true)
 	else
 		r:SetPoint("LEFT", raid[i - 1], "RIGHT", 6, 0)
 	end
 
 	r:SetManyAttributes(
 		"showRaid", true,
-		"groupFilter", i,
+		"groupFilter", tostring(i),
 		"yOffset", -10
 	)
 
