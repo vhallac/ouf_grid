@@ -22,7 +22,7 @@ do
 	end
 end
 
-local libheal = LibStub("LibHealComm-3.0", true)
+local libheal = nil -- LibStub("LibHealComm-3.0", true)
 
 local UnitName = UnitName
 local UnitClass = UnitClass
