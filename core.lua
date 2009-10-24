@@ -222,20 +222,21 @@ oUF:SetActiveStyle("Kanne-Grid")
 local raid = {}
 for i = 1, 8 do
 	local r = oUF:Spawn("header", "oUF_Raid" .. i)
-	r:SetPoint("TOP", UIParent, "TOP", 0, -100)
+	r:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 30, -100)
 	if i == 1 then
 		r:SetPoint("LEFT", UIParent, "LEFT", 80, 0)
 		r:SetManyAttributes('showParty', true,
 							'showPlayer', true,
 							'showSolo', true)
 	else
-		r:SetPoint("LEFT", raid[i - 1], "RIGHT", 6, 0)
+		r:SetPoint("TOPLEFT", raid[i - 1], "BOTTOMRIGHT", 0, -10)
 	end
 
 	r:SetManyAttributes(
 		"showRaid", true,
 		"groupFilter", tostring(i),
-		"yOffset", -10
+		"xOffset", 10,
+		'point', "LEFT"
 	)
 
 	r:Show()

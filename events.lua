@@ -221,7 +221,7 @@ end
 
 -- BG
 local bg = CreateFrame("Frame")
-bg:SetPoint("TOP", _G["oUF_Raid1"], "TOP", 0, 8)
+bg:SetPoint("LEFT", _G["oUF_Raid1"], "LEFT", 0, -8)
 bg:SetBackdrop({
 	bgFile = "Interface\\ChatFrame\\ChatFrameBackground", tile = true, tileSize = 16,
 	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
@@ -254,9 +254,9 @@ function f:RAID_ROSTER_UPDATE()
 		end
 	end
 
-	bg:SetPoint("LEFT", _G["oUF_Raid" .. first], "LEFT", -8 , 0)
-	bg:SetPoint("RIGHT", _G["oUF_Raid" .. last], "RIGHT", 8, 0)
-	bg:SetPoint("BOTTOM", _G["oUF_Raid" .. h], "BOTTOM", 0, -8)
+	bg:SetPoint("TOP", _G["oUF_Raid" .. first], "TOP", 0, 8)
+	bg:SetPoint("BOTTOM", _G["oUF_Raid" .. last], "BOTTOM", 0, -8)
+	bg:SetPoint("RIGHT", _G["oUF_Raid" .. h], "RIGHT", 8, 0)
 end
 
 f.PLAYER_LOGIN = f.RAID_ROSTER_UPDATE
