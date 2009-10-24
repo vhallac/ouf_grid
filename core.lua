@@ -183,25 +183,6 @@ local frame = function(settings, self, unit)
 
 	self.border = border
 
-	local icon = hp:CreateTexture(nil, "OVERLAY")
-	icon:SetPoint("CENTER")
-	icon:SetHeight(20)
-	icon:SetWidth(20)
-	icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-	icon:Hide()
-
-	icon.ShowText = function(s)
-		self.Name:Hide()
-		s:Show()
-	end
-
-	icon.HideText = function(s)
-		self.Name:Show()
-		s:Hide()
-	end
-
-	self.Icon = icon
-
 	self.Range = true
 	self.inRangeAlpha = 1
 	self.outsideRangeAlpha = 0.4
