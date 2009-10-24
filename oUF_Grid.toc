@@ -6,7 +6,7 @@
 ## X-oUF: oufgrid
 
 ## LoadManagers: AddonLoader
-## X-LoadOn-Raid: true
+## X-LoadOn-Always: delayed
 
 lib\UTF8\utf8data.lua
 lib\UTF8\utf8.lua
