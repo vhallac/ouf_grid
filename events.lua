@@ -22,8 +22,6 @@ do
 	end
 end
 
-local libheal = nil -- LibStub("LibHealComm-3.0", true)
-
 local UnitName = UnitName
 local UnitClass = UnitClass
 local select = select
@@ -111,168 +109,6 @@ local dispellPiority = {
 	["Disease"] = 1,
 	["Curse"] = 2,
 }
-
--- Lib Heal Support
-
-if libheal then
-	local ownHeals = {}
-	local Roster, invRoster = {}, {}
-
-	setmetatable(invRoster, {
-		__index = function(self, key)
-			local name, server = UnitName(key)
-			if name == playername then server = playerrealm end
-			if server and server ~= "" then
-				name = name .. "-" .. server
-			end
-			if name then
-				rawset(Roster, name, key)
-				rawset(self, key, name)
-				return name
-			end
-			return
-		end
-	})
-
-	setmetatable(Roster, {
-		__index = function(self, key)
-			if key == playername then
-				local unit
-				if UnitInRaid("player") then
-					unit = "raid" .. UnitInRaid("player") + 1
-				else
-					unit = "player"
-				end
-				local set = key .. "-" .. playerrealm
-				rawset(self, set, unit)
-				rawset(invRoster, unit, set)
-				return unit
-			end
-			-- Dont want to do this :(
-			for unit in pairs(oUF.units) do
-				local name, server = UnitName(unit)
-				if name == key and server and server ~= "" then
-					name = name .. "-" .. server
-					rawset(self, name, unit)
-					rawset(invRoster, unit, name)
-					return unit
-				end
-			end
-			return
-		end
-	})
-
-	UpdateRoster = function()
-		local unit
-		local e
-		if GetNumRaidMembers() > 0 then
-			for i = 1, 40 do
-				unit = "raid" .. i
-				e = UnitExists(unit)
-				if e then
-					local name, server = UnitName(unit)
-					if server and server ~= "" then
-						name = name .. "-" .. server
-					end
-					if name then
-						Roster[name] = unit
-						invRoster[unit] = name
-					end
-				else
-					local n = invRoster[unit]
-					if n then
-						Roster[n] = nil
-					end
-					invRoster[unit] = nil
-				end
-			end
-		elseif GetNumPartyMembers() > 0 then
-			for i = 1, 4 do
-				unit = "party" .. i
-				e = UnitExists(unit)
-				if e then
-					local name, server = UnitName(unit)
-					if not Roster[name] then
-						Roster[name] = unit
-						invRoster[unit] = name
-					end
-				else
-					local n = invRoster[unit]
-					if n then
-						Roster[n] = nil
-					end
-					invRoster[unit] = nil
-				end
-			end
-		end
-	end
-
-	local heals = {}
-
-	function heals:HealComm_DirectHealStop(event, healerName, healSize, succeeded, ...)
-		self:HealComm_DirectHealStart(event, healerName, 0, endTime, ...)
-	end
-
-	function heals:HealModifierUpdate(event, unit, targetName, healModifier)
-		self:UpdateHeals(targetName)
-	end
-
-	function heals:HealComm_DirectHealDelayed(event, healerName, healSize, endTime, ...)
-		self:HealComm_DirectHealStart(event, healerName, healSize, endTime, ...)
-	end
-
-	function heals:HealComm_DirectHealStart(event, healerName, healSize, endTime, ...)
-		local isOwn = healerName == playername
-		for i = 1, select("#", ...) do
-			local name = select(i, ...)
-			if isOwn then
-				ownHeals[name] = healSize
-			end
-			self:UpdateHeals(name)
-		end
-	end
-
-	function heals:UpdateHeals(name)
-		local unit = Roster[name]
-		if not oUF.units[unit] then return end
-
-		local frame = oUF.units[unit]
-
-		if not frame.heal then
-			local heal = frame.Health:CreateTexture(nil, "OVERLAY")
-			heal:SetHeight(height)
-			heal:SetWidth(width)
-			heal:SetPoint("BOTTOM", frame.Health)
-			heal:SetTexture([[Interface\AddOns\oUF_Grid\media\gradient32x32.tga]])
-			heal:SetVertexColor(0, 1, 0)
-			heal:Hide()
-			frame.heal = heal
-		end
-
-		local incHeal = select(2, libheal:UnitIncomingHealGet(unit, GetTime())) or ownHeals[name]
-		if incHeal and incHeal > 0 then
-			incHeal = incHeal + (ownHeals[name] or 0)
-			local mod = libheal:UnitHealModifierGet(name)
-			local val = (mod * incHeal)
-			local incPer = val / UnitHealthMax(unit)
-			local per = UnitHealth(unit) / UnitHealthMax(unit)
-			frame.heal:SetHeight(incPer * height)
-			if (incPer * height) + (height * per) >= height then
-				local over = (incPer * height) + (height * per) - height
-				frame.heal:SetHeight((incPer * height) - over)
-			end
-			frame.heal:SetPoint("BOTTOM", frame, "BOTTOM", 0, height * per)
-			frame.heal:Show()
-		else
-			frame.heal:Hide()
-		end
-	end
-
-	libheal.RegisterCallback(heals, "HealComm_DirectHealStop")
-	libheal.RegisterCallback(heals, "HealComm_DirectHealDelayed")
-	libheal.RegisterCallback(heals, "HealComm_DirectHealStart")
-	libheal.RegisterCallback(heals, "HealModifierUpdate")
-end
 
 local name, rank, buffTexture, count, duration, timeLeft, dtype
 function f:UNIT_AURA(unit)
@@ -421,10 +257,6 @@ function f:RAID_ROSTER_UPDATE()
 	bg:SetPoint("LEFT", _G["oUF_Raid" .. first], "LEFT", -8 , 0)
 	bg:SetPoint("RIGHT", _G["oUF_Raid" .. last], "RIGHT", 8, 0)
 	bg:SetPoint("BOTTOM", _G["oUF_Raid" .. h], "BOTTOM", 0, -8)
-
-	if libheal then
-		UpdateRoster()
-	end
 end
 
 f.PLAYER_LOGIN = f.RAID_ROSTER_UPDATE

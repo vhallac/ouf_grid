@@ -151,16 +151,6 @@ local frame = function(settings, self, unit)
 	hpbg:SetTexture(texture)
 	hpbg:SetAlpha(1)
 
-	local heal = hp:CreateTexture(nil, "OVERLAY")
-	heal:SetHeight(height)
-	heal:SetWidth(width)
-	heal:SetPoint("BOTTOM")
-	heal:SetTexture(texture)
-	heal:SetVertexColor(0, 1, 0)
-	heal:Hide()
-
-	self.heal = heal
-
 	hp.bg = hpbg
 	self.Health = hp
 	self.PostUpdateHealth = PostUpdateHealth
