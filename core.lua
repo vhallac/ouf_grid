@@ -38,10 +38,9 @@ local UnitName = UnitName
 local UnitClass = UnitClass
 local select = select
 local unpack = unpack
-local UnitDebuff = UnitDebuff
-local UnitInRaid = UnitInRaid
 
 local width, height = 50, 50
+local targetwidth, targetheight = width/3, height/3
 
 local texture = [[Interface\AddOns\oUF_Grid\media\gradient32x32.tga]]
 local hightlight = [[Interface\AddOns\oUF_Grid\media\mouseoverHighlight.tga]]
@@ -120,7 +119,7 @@ local OnLeave = function(self)
 	self.Highlight:Hide()
 end
 
-local frame = function(settings, self, unit)
+local setupCommon = function(settings, self, unit)
 	self.menu = menu
 
 	self:EnableMouse(true)
@@ -136,24 +135,20 @@ local frame = function(settings, self, unit)
 	})
 	self:SetBackdropColor(0, 0, 0, 1)
 
-	self:SetAttribute("*type2", "menu")
-
 	local hp = CreateFrame("StatusBar", nil, self)
 	hp:SetAllPoints(self)
 	hp:SetStatusBarTexture(texture)
-	hp:SetOrientation("VERTICAL")
 	hp:SetFrameLevel(5)
 	hp:SetStatusBarColor(0, 0, 0)
 	hp:SetAlpha(0.8)
+
+	self.Health = hp
 
 	local hpbg = hp:CreateTexture(nil, "BACKGROUND")
 	hpbg:SetAllPoints(hp)
 	hpbg:SetTexture(texture)
 	hpbg:SetAlpha(1)
-
 	hp.bg = hpbg
-	self.Health = hp
-	self.PostUpdateHealth = PostUpdateHealth
 
 	local hl = hp:CreateTexture(nil, "OVERLAY")
 	hl:SetAllPoints(self)
@@ -162,15 +157,6 @@ local frame = function(settings, self, unit)
 	hl:Hide()
 
 	self.Highlight = hl
-
-	local name = hp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-	name:SetPoint("CENTER")
-	name:SetJustifyH("CENTER")
-	name:SetShadowColor(0,0,0,1)
-	name:SetShadowOffset(1, -1)
-	name:SetTextColor(1, 1, 1, 1)
-
-	self:Tag(name, tagstr)
 
 	local border = hp:CreateTexture(nil, "OVERLAY")
 	border:SetPoint("LEFT", self, "LEFT", -4, 0)
@@ -182,10 +168,67 @@ local frame = function(settings, self, unit)
 	border:SetVertexColor(1, 1, 1)
 
 	self.border = border
+end
 
-	self.Range = true
-	self.inRangeAlpha = 1
-	self.outsideRangeAlpha = 0.4
+local setupBySuffix = {
+	["default"] = function(settings, self, unit)
+		self:SetAttribute("*type2", "menu")
+
+		local hp = self.Health
+
+		hp:SetOrientation("VERTICAL")
+
+		local name = hp:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+		name:SetPoint("CENTER")
+		name:SetJustifyH("CENTER")
+		name:SetShadowColor(0,0,0,1)
+		name:SetShadowOffset(1, -1)
+		name:SetTextColor(1, 1, 1, 1)
+
+		self:Tag(name, tagstr)
+
+		self.PostUpdateHealth = PostUpdateHealth
+
+		self.Range = true
+		self.inRangeAlpha = 1
+		self.outsideRangeAlpha = 0.4
+
+		self:SetAttribute("initial-height", height)
+		self:SetAttribute("initial-width", width)
+	end,
+	["target"] = function(settings, self, unit)
+		self:SetAttribute("*type2", "assist")
+
+		local hp = self.Health
+
+		hp:SetOrientation("HORIZONTAL")
+
+		local icon = hp:CreateTexture(nil, "OVERLAY")
+		icon:SetPoint("CENTER")
+		icon:SetHeight(targetheight)
+		icon:SetWidth(targetwidth)
+		icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+		icon:Hide()
+
+		self.RaidIcon = icon
+
+		self.colors.health = {1, 0, 0}
+		hp.colorHealth = true
+
+		self.Highlight:SetTexCoord(0, 0, 1, 0, 0, 1, 1, 1)
+
+		self:SetAttribute("initial-height", targetheight)
+		self:SetAttribute("initial-width", targetwidth)
+	end
+}
+
+local frame = function(settings, self, unit)
+	setupCommon(settings, self, unit)
+
+	local suffix = self:GetAttribute("unitsuffix") or "default"
+	if setupBySuffix[suffix] then
+		setupBySuffix[suffix](settings, self, unit)
+	end
 
 	return self
 end
@@ -217,7 +260,8 @@ for i = 1, 8 do
 		"showRaid", true,
 		"groupFilter", tostring(i),
 		"xOffset", 10,
-		'point', "LEFT"
+		'point', "LEFT",
+		"template", "oUF_GridTemplate"
 	)
 
 	r:Show()

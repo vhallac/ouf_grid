@@ -12,6 +12,7 @@ lib\UTF8\utf8data.lua
 lib\UTF8\utf8.lua
 
 oUF\oUF.xml
+oUF_Grid.xml
 
 core.lua
 events.lua
