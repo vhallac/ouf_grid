@@ -253,7 +253,7 @@ for i = 1, 8 do
 							'showPlayer', true,
 							'showSolo', true)
 	else
-		r:SetPoint("TOPLEFT", raid[i - 1], "BOTTOMRIGHT", 0, -10)
+		r:SetPoint("TOPLEFT", raid[i - 1], "BOTTOMLEFT", 0, -10)
 	end
 
 	r:SetManyAttributes(

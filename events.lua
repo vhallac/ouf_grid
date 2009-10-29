@@ -45,7 +45,7 @@ end
 
 -- BG
 local bg = CreateFrame("Frame")
-bg:SetPoint("LEFT", _G["oUF_Raid1"], "LEFT", 0, -8)
+bg:SetPoint("LEFT", _G["oUF_Raid1"], "LEFT", -8, 0)
 bg:SetBackdrop({
 	bgFile = "Interface\\ChatFrame\\ChatFrameBackground", tile = true, tileSize = 16,
 	edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
