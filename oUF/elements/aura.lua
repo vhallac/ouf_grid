@@ -38,15 +38,14 @@
 	 - :CreateAuraIcon(icons, index, isDebuff)
 	 - :PostUpdateAuraIcon(icons, unit, icon, index, offset, filter, isDebuff)
 	 - :PreUpdateAura(event, unit)
+	 - :PreAuraSetPosition(auras, max)
 	 - :SetAuraPosition(auras, max)
 	 - :PostUpdateAura(event, unit)
 
 	[1] http://www.wowwiki.com/API_UnitAura
 --]]
-local parent = debugstack():match[[\AddOns\(.-)\]]
-local global = GetAddOnMetadata(parent, 'X-oUF')
-assert(global, 'X-oUF needs to be defined in the parent add-on.')
-local oUF = _G[global]
+local parent, ns = ...
+local oUF = ns.oUF
 
 local OnEnter = function(self)
 	if(not self:IsVisible()) then return end
@@ -59,9 +58,16 @@ local OnLeave = function()
 	GameTooltip:Hide()
 end
 
+-- We don't really need to validate much here as the filter should prevent us
+-- from doing something we shouldn't.
+local OnClick = function(self)
+	CancelUnitBuff(self.frame.unit, self:GetID(), self.filter)
+end
+
 local createAuraIcon = function(self, icons, index, debuff)
-	local button = CreateFrame("Frame", nil, icons)
+	local button = CreateFrame("Button", nil, icons)
 	button:EnableMouse(true)
+	button:RegisterForClicks'RightButtonUp'
 
 	button:SetWidth(icons.size or 16)
 	button:SetHeight(icons.size or 16)
@@ -84,6 +90,10 @@ local createAuraIcon = function(self, icons, index, debuff)
 
 	button:SetScript("OnEnter", OnEnter)
 	button:SetScript("OnLeave", OnLeave)
+
+	if(self.unit == 'player') then
+		button:SetScript('OnClick', OnClick)
+	end
 
 	table.insert(icons, button)
 
@@ -117,46 +127,55 @@ end
 local updateIcon = function(self, unit, icons, index, offset, filter, isDebuff, max)
 	if(index == 0) then index = max end
 
-	local icon = icons[index + offset]
-	if(not icon) then
-		icon = (self.CreateAuraIcon or createAuraIcon) (self, icons, index, isDebuff)
-	end
-
-	local name, rank, texture, count, dtype, duration, timeLeft, caster = UnitAura(unit, index, filter)
-	local show = (self.CustomAuraFilter or customFilter) (icons, unit, icon, name, rank, texture, count, dtype, duration, timeLeft, caster)
-	if(show) then
-		if(not icons.disableCooldown and duration and duration > 0) then
-			icon.cd:SetCooldown(timeLeft - duration, duration)
-			icon.cd:Show()
-		else
-			icon.cd:Hide()
+	local name, rank, texture, count, dtype, duration, timeLeft, caster, isStealable, shouldConsolidate, spellID = UnitAura(unit, index, filter)
+	if(name) then
+		local icon = icons[index + offset]
+		if(not icon) then
+			icon = (self.CreateAuraIcon or createAuraIcon) (self, icons, index, isDebuff)
 		end
 
-		if((isDebuff and icons.showDebuffType) or (not isDebuff and icons.showBuffType) or icons.showType) then
-			local color = DebuffTypeColor[dtype] or DebuffTypeColor.none
+		local show = (self.CustomAuraFilter or customFilter) (icons, unit, icon, name, rank, texture, count, dtype, duration, timeLeft, caster, isStealable, shouldConsolidate, spellID)
+		if(show) then
+			-- We might want to consider delaying the creation of an actual cooldown
+			-- object to this point, but I think that will just make things needlessly
+			-- complicated.
+			local cd = icon.cd
+			if(cd and not icons.disableCooldown) then
+				if(duration and duration > 0) then
+					cd:SetCooldown(timeLeft - duration, duration)
+					cd:Show()
+				else
+					cd:Hide()
+				end
+			end
 
-			icon.overlay:SetVertexColor(color.r, color.g, color.b)
-			icon.overlay:Show()
+			if((isDebuff and icons.showDebuffType) or (not isDebuff and icons.showBuffType) or icons.showType) then
+				local color = DebuffTypeColor[dtype] or DebuffTypeColor.none
+
+				icon.overlay:SetVertexColor(color.r, color.g, color.b)
+				icon.overlay:Show()
+			else
+				icon.overlay:Hide()
+			end
+
+			icon.icon:SetTexture(texture)
+			icon.count:SetText((count > 1 and count))
+
+			icon.filter = filter
+			icon.debuff = isDebuff
+
+			icon:SetID(index)
+			icon:Show()
+
+			if(self.PostUpdateAuraIcon) then
+				self:PostUpdateAuraIcon(icons, unit, icon, index, offset, filter, isDebuff)
+			end
 		else
-			icon.overlay:Hide()
-		end
-
-		icon.icon:SetTexture(texture)
-		icon.count:SetText((count > 1 and count))
-
-		icon.filter = filter
-		icon.debuff = isDebuff
-
-		icon:SetID(index)
-		icon:Show()
-
-		if(self.PostUpdateAuraIcon) then
-			self:PostUpdateAuraIcon(icons, unit, icon, index, offset, filter, isDebuff)
+			-- Hide the icon in-case we are in the middle of the stack.
+			icon:Hide()
 		end
 
 		return true
-	else
-		icon:Hide()
 	end
 end
 
@@ -173,7 +192,7 @@ local SetAuraPosition = function(self, icons, x)
 		local cols = math.floor(icons:GetWidth() / size + .5)
 		local rows = math.floor(icons:GetHeight() / size + .5)
 
-		for i = 1, x do
+		for i = 1, #icons do
 			local button = icons[i]
 			if(button and button:IsShown()) then
 				if(gap and button.debuff) then
@@ -192,6 +211,8 @@ local SetAuraPosition = function(self, icons, x)
 				button:SetPoint(anchor, icons, anchor, col * size * growthx, row * size * growthy)
 
 				col = col + 1
+			elseif(not button) then
+				break
 			end
 		end
 	end
@@ -221,10 +242,17 @@ local Update = function(self, event, unit)
 			end
 		end
 
+		local index = visibleBuffs + visibleDebuffs + 1
+		while(auras[index]) do
+			auras[index]:Hide()
+			index = index + 1
+		end
+
 		auras.visibleBuffs = visibleBuffs
 		auras.visibleDebuffs = visibleDebuffs
 		auras.visibleAuras = visibleBuffs + visibleDebuffs
 
+		if(self.PreAuraSetPosition) then self:PreAuraSetPosition(auras, max) end
 		self:SetAuraPosition(auras, max)
 	end
 
@@ -247,6 +275,8 @@ local Update = function(self, event, unit)
 		end
 
 		buffs.visibleBuffs = visibleBuffs
+
+		if(self.PreAuraSetPosition) then self:PreAuraSetPosition(buffs, max) end
 		self:SetAuraPosition(buffs, max)
 	end
 
@@ -268,10 +298,14 @@ local Update = function(self, event, unit)
 			visibleDebuffs = visibleDebuffs + 1
 		end
 		debuffs.visibleDebuffs = visibleDebuffs
+
+		if(self.PreAuraSetPosition) then self:PreAuraSetPosition(debuffs, max) end
 		self:SetAuraPosition(debuffs, max)
 	end
 
-	if(self.PostUpdateAura) then self:PostUpdateAura(event, unit) end
+	if(self.PostUpdateAura) then
+		return self:PostUpdateAura(event, unit)
+	end
 end
 
 local Enable = function(self)

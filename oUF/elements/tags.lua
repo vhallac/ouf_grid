@@ -8,10 +8,10 @@
 --	- Tag and Untag should be able to handle more than one fontstring at a time.
 ]]
 
-local parent = debugstack():match[[\AddOns\(.-)\]]
-local global = GetAddOnMetadata(parent, 'X-oUF')
-assert(global, 'X-oUF needs to be defined in the parent add-on.')
-local oUF = _G[global]
+local parent, ns = ...
+local oUF = ns.oUF
+
+local classColors
 
 local function Hex(r, g, b)
 	if type(r) == "table" then
@@ -22,36 +22,133 @@ end
 
 local tags
 tags = {
-	["[class]"]       = function(u) return UnitClass(u) end,
-	["[creature]"]    = function(u) return UnitCreatureFamily(u) or UnitCreatureType(u) end,
-	["[curhp]"]       = UnitHealth,
-	["[curpp]"]       = UnitPower,
-	["[dead]"]        = function(u) return UnitIsDead(u) and "Dead" or UnitIsGhost(u) and "Ghost" end,
-	["[difficulty]"]  = function(u) if UnitCanAttack("player", u) then local l = UnitLevel(u); return Hex(GetDifficultyColor((l > 0) and l or 99)) end end,
-	["[faction]"]     = function(u) return UnitFactionGroup(u) end,
-	["[leader]"]      = function(u) return UnitIsPartyLeader(u) and "(L)" end,
-	["[leaderlong]"]  = function(u) return UnitIsPartyLeader(u) and "(Leader)" end,
-	["[level]"]       = function(u) local l = UnitLevel(u) return (l > 0) and l or "??" end,
-	["[maxhp]"]       = UnitHealthMax,
-	["[maxpp]"]       = UnitPowerMax,
-	["[missinghp]"]   = function(u) return UnitHealthMax(u) - UnitHealth(u) end,
-	["[missingpp]"]   = function(u) return UnitPowerMax(u) - UnitPower(u) end,
-	["[name]"]        = function(u, r) return (r or u) and UnitName(r or u) end,
-	["[offline]"]     = function(u) return  (not UnitIsConnected(u) and "Offline") end,
-	["[perhp]"]       = function(u) local m = UnitHealthMax(u); return m == 0 and 0 or math.floor(UnitHealth(u)/m*100+0.5) end,
-	["[perpp]"]       = function(u) local m = UnitPowerMax(u); return m == 0 and 0 or math.floor(UnitPower(u)/m*100+0.5) end,
-	["[plus]"]        = function(u) local c = UnitClassification(u); return (c == "elite" or c == "rareelite") and "+" end,
-	["[pvp]"]         = function(u) return UnitIsPVP(u) and "PvP" end,
-	["[race]"]        = function(u) return UnitRace(u) end,
-	["[raidcolor]"]   = function(u) local _, x = UnitClass(u); return x and Hex(RAID_CLASS_COLORS[x]) end,
-	["[rare]"]        = function(u) local c = UnitClassification(u); return (c == "rare" or c == "rareelite") and "Rare" end,
-	["[resting]"]     = function(u) return u == "player" and IsResting() and "zzz" end,
-	["[sex]"]         = function(u) local s = UnitSex(u) return s == 2 and "Male" or s == 3 and "Female" end,
-	["[smartclass]"]  = function(u) return UnitIsPlayer(u) and tags["[class]"](u) or tags["[creature]"](u) end,
-	["[status]"]      = function(u) return UnitIsDead(u) and "Dead" or UnitIsGhost(u) and "Ghost" or not UnitIsConnected(u) and "Offline" or tags["[resting]"](u) end,
-	["[threat]"]      = function(u) local s = UnitThreatSituation(u) return s == 1 and "++" or s == 2 and "--" or s == 3 and "Aggro" end,
-	["[threatcolor]"] = function(u) return Hex(GetThreatStatusColor(UnitThreatSituation(u))) end,
-	["[cpoints]"]     = function(u) local cp = GetComboPoints(u, 'target') return (cp > 0) and cp end,
+
+	["[curhp]"] = UnitHealth,
+	["[curpp]"] = UnitPower,
+	["[maxhp]"] = UnitHealthMax,
+	["[maxpp]"] = UnitPowerMax,
+
+	["[class]"] = function(u)
+		return UnitClass(u)
+	end,
+
+	["[creature]"] = function(u)
+		return UnitCreatureFamily(u) or UnitCreatureType(u)
+	end,
+
+	["[dead]"] = function(u)
+		return UnitIsDead(u) and "Dead" or UnitIsGhost(u) and "Ghost"
+	end,
+
+	["[difficulty]"]  = function(u)
+		if UnitCanAttack("player", u) then
+			local l = UnitLevel(u)
+			return Hex(GetQuestDifficultyColor((l > 0) and l or 99))
+		end
+	end,
+
+	["[faction]"] = function(u)
+		return UnitFactionGroup(u)
+	end,
+
+	["[leader]"] = function(u)
+		return UnitIsPartyLeader(u) and "(L)"
+	end,
+
+	["[leaderlong]"]  = function(u)
+		return UnitIsPartyLeader(u) and "(Leader)"
+	end,
+
+	["[level]"] = function(u)
+		local l = UnitLevel(u)
+		return (l > 0) and l or "??"
+	end,
+
+	["[missinghp]"] = function(u)
+		local current = UnitHealthMax(u) - UnitHealth(u)
+		if(current > 0) then
+			return current
+		end
+	end,
+
+	["[missingpp]"] = function(u)
+		local current = UnitPowerMax(u) - UnitPower(u)
+		if(current > 0) then
+			return current
+		end
+	end,
+
+	["[name]"] = function(u, r)
+		return UnitName(r or u)
+	end,
+
+	["[offline]"] = function(u)
+		return  (not UnitIsConnected(u) and "Offline")
+	end,
+
+	["[perhp]"] = function(u)
+		local m = UnitHealthMax(u)
+		return m == 0 and 0 or math.floor(UnitHealth(u)/m*100+0.5)
+	end,
+
+	["[perpp]"] = function(u)
+		local m = UnitPowerMax(u)
+		return m == 0 and 0 or math.floor(UnitPower(u)/m*100+0.5)
+	end,
+
+	["[plus]"] = function(u)
+		local c = UnitClassification(u)
+		return (c == "elite" or c == "rareelite") and "+"
+	end,
+
+	["[pvp]"] = function(u)
+		return UnitIsPVP(u) and "PvP"
+	end,
+
+	["[race]"] = function(u)
+		return UnitRace(u)
+	end,
+
+	["[raidcolor]"]   = function(u)
+		local _, x = UnitClass(u)
+		return x and Hex(classColors[x])
+	end,
+
+	["[rare]"] = function(u)
+		local c = UnitClassification(u)
+		return (c == "rare" or c == "rareelite") and "Rare"
+	end,
+
+	["[resting]"] = function(u)
+		return u == "player" and IsResting() and "zzz"
+	end,
+
+	["[sex]"] = function(u)
+		local s = UnitSex(u)
+		return s == 2 and "Male" or s == 3 and "Female"
+	end,
+
+	["[smartclass]"] = function(u)
+		return UnitIsPlayer(u) and tags["[class]"](u) or tags["[creature]"](u)
+	end,
+
+	["[status]"] = function(u)
+		return UnitIsDead(u) and "Dead" or UnitIsGhost(u) and "Ghost" or not UnitIsConnected(u) and "Offline" or tags["[resting]"](u)
+	end,
+
+	["[threat]"] = function(u)
+		local s = UnitThreatSituation(u)
+		return s == 1 and "++" or s == 2 and "--" or s == 3 and "Aggro"
+	end,
+
+	["[threatcolor]"] = function(u)
+		return Hex(GetThreatStatusColor(UnitThreatSituation(u)))
+	end,
+
+	["[cpoints]"] = function(u)
+		local cp = GetComboPoints(u, 'target')
+		return (cp > 0) and cp
+	end,
 
 	['[smartlevel]'] = function(u)
 		local c = UnitClassification(u)
@@ -76,6 +173,24 @@ tags = {
 	["[shortclassification]"] = function(u)
 		local c = UnitClassification(u)
 		return c == "rare" and "R" or c == "eliterare" and "R+" or c == "elite" and "+" or c == "worldboss" and "B"
+	end,
+
+	["[group]"] = function(unit)
+		local name, server = UnitName(unit)
+		if(server and server ~= "") then
+			name = string.format("%s-%s", name, server)
+		end
+
+		for i=1, GetNumRaidMembers() do
+			local raidName, _, group = GetRaidRosterInfo(i)
+			if( raidName == name ) then
+				return group
+			end
+		end
+	end,
+
+	["[defict:name]"] = function(u)
+		return tags['[missinghp]'](u) or tags['[name]'](u)
 	end,
 }
 local tagEvents = {
@@ -103,12 +218,12 @@ local tagEvents = {
 	['[rare]']                = 'UNIT_CLASSIFICATION_CHANGED',
 	['[classification]']      = 'UNIT_CLASSIFICATION_CHANGED',
 	['[shortclassification]'] = 'UNIT_CLASSIFICATION_CHANGED',
+	["[group]"]               = "RAID_ROSTER_UPDATE",
 }
 
 local unitlessEvents = {
-	PLAYER_TARGET_CHANGED = true,
-	PLAYER_FOCUS_CHANGED = true,
 	PLAYER_LEVEL_UP = true,
+	RAID_ROSTER_UPDATE = true,
 }
 
 local events = {}
@@ -118,30 +233,48 @@ frame:SetScript('OnEvent', function(self, event, unit)
 	if(strings) then
 		for k, fontstring in next, strings do
 			if(not unitlessEvents[event] and fontstring.parent.unit == unit and fontstring:IsVisible()) then
+				-- XXX: Fix this for 1.4
+				classColors = fontstring.parent.colors.class
 				fontstring:UpdateTag()
 			end
 		end
 	end
 end)
 
+local OnUpdates = {}
 local eventlessUnits = {}
-local timer = .5
-local lowestTimer = .5
-local OnUpdate = function(self, elapsed)
-	if(timer >= lowestTimer) then
-		for k, fs in next, eventlessUnits do
-			if(fs.parent:IsShown() and UnitExists(fs.parent.unit)) then
-				fs:UpdateTag()
+
+local createOnUpdate = function(timer)
+	local OnUpdate = OnUpdates[timer]
+
+	if(not OnUpdate) then
+		local total = timer
+		local frame = CreateFrame'Frame'
+		local strings = eventlessUnits[timer]
+
+		frame:SetScript('OnUpdate', function(self, elapsed)
+			if(total >= timer) then
+				for k, fs in next, strings do
+					if(fs.parent:IsShown() and UnitExists(fs.parent.unit)) then
+						-- XXX: Fix this for 1.4.
+						classColors = fs.parent.colors.class
+						fs:UpdateTag()
+					end
+				end
+
+				total = 0
 			end
-		end
 
-		timer = 0
+			total = total + elapsed
+		end)
+
+		OnUpdates[timer] = OnUpdate
 	end
-
-	timer = timer + elapsed
 end
 
 local OnShow = function(self)
+	-- XXX: Fix this for 1.4.
+	classColors = self.colors.class
 	for _, fs in next, self.__tags do
 		fs:UpdateTag()
 	end
@@ -157,7 +290,7 @@ end
 local RegisterEvents = function(fontstr, tagstr)
 	-- Forcefully strip away any parentheses and the characters in them.
 	tagstr = tagstr:gsub('%b()', '')
-	for tag in tagstr:gmatch'[%[]%w+[%]]' do
+	for tag in tagstr:gmatch'[%[].-[%]]' do
 		local tagevents = tagEvents[tag]
 		if(tagevents) then
 			for event in tagevents:gmatch'%S+' do
@@ -168,11 +301,14 @@ local RegisterEvents = function(fontstr, tagstr)
 end
 
 local UnregisterEvents = function(fontstr)
-	for events, data in pairs(events) do
+	for event, data in pairs(events) do
 		for k, tagfsstr in pairs(data) do
 			if(tagfsstr == fontstr) then
-				if(#data[k] == 1) then frame:UnregisterEvent(event) end
-				data[k] = nil
+				if(#data == 1) then
+					frame:UnregisterEvent(event)
+				end
+
+				table.remove(data, k)
 			end
 		end
 	end
@@ -182,8 +318,8 @@ local tagPool = {}
 local funcPool = {}
 local tmp = {}
 
-local Tag = function(self, fs, tagstr, frequent)
-	if(not fs or not tagstr or self == oUF) then return end
+local Tag = function(self, fs, tagstr)
+	if(not fs or not tagstr) then return end
 
 	if(not self.__tags) then
 		self.__tags = {}
@@ -264,7 +400,7 @@ local Tag = function(self, fs, tagstr, frequent)
 
 		func = function(self)
 			local unit = self.parent.unit
-			local __unit = self.parent.__unit
+			local __unit = self.parent.realUnit
 
 			for i, func in next, args do
 				tmp[i] = func(unit, __unit) or ''
@@ -279,37 +415,33 @@ local Tag = function(self, fs, tagstr, frequent)
 
 	local unit = self.unit
 	if((unit and unit:match'%w+target') or fs.frequentUpdates) then
+		local timer
 		if(type(fs.frequentUpdates) == 'number') then
-			lowestTimer = math.min(fs.frequentUpdates, lowestTimer)
+			timer = fs.frequentUpdates
+		else
+			timer = .5
 		end
 
-		table.insert(eventlessUnits, fs)
+		if(not eventlessUnits[timer]) then eventlessUnits[timer] = {} end
+		table.insert(eventlessUnits[timer], fs)
 
-		if(not frame:GetScript'OnUpdate') then
-			frame:SetScript('OnUpdate', OnUpdate)
-		end
+		createOnUpdate(timer)
 	else
 		RegisterEvents(fs, tagstr)
-
-		if(unit == 'focus') then
-			RegisterEvent(fs, 'PLAYER_FOCUS_CHANGED')
-		elseif(unit == 'target') then
-			RegisterEvent(fs, 'PLAYER_TARGET_CHANGED')
-		elseif(unit == 'mouseover') then
-			RegisterEvent(fs, 'UPDATE_MOUSEOVER_UNIT')
-		end
 	end
 
 	table.insert(self.__tags, fs)
 end
 
 local Untag = function(self, fs)
-	if(not fs or self == oUF) then return end
+	if(not fs) then return end
 
 	UnregisterEvents(fs)
-	for k, fontstr in next, eventlessUnits do
-		if(fs == fontstr) then
-			table.remove(eventlessUnits, k)
+	for _, timers in next, eventlessUnits do
+		for k, fontstr in next, timers do
+			if(fs == fontstr) then
+				table.remove(eventlessUnits, k)
+			end
 		end
 	end
 
@@ -326,5 +458,5 @@ oUF.Tags = tags
 oUF.TagEvents = tagEvents
 oUF.UnitlessTagEvents = unitlessEvents
 
-oUF.Tag = Tag
-oUF.Untag = Untag
+oUF.frame_metatable.__index.Tag = Tag
+oUF.frame_metatable.__index.Untag = Untag
