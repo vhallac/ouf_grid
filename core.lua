@@ -193,6 +193,15 @@ local setupBySuffix = {
 		self.inRangeAlpha = 1
 		self.outsideRangeAlpha = 0.4
 
+		local icon = hp:CreateTexture(nil, "OVERLAY")
+		icon:SetPoint("TOP")
+		icon:SetHeight(height/5)
+		icon:SetWidth(width/5)
+		icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+		icon:Hide()
+
+		self.RaidIcon = icon
+
 		self:SetAttribute("initial-height", height)
 		self:SetAttribute("initial-width", width)
 	end,
